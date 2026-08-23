@@ -1,0 +1,25 @@
+sing-box-observability
+Copyright (C) 2026 Fanju and contributors
+
+本项目原创代码依据 GNU General Public License version 3 或任何更高版本
+发布，完整条款见 LICENSE。改编内容和第三方内容继续受各自许可证约束。
+
+本项目是非官方项目，不由 SagerNet、nekohasekai 或 sing-box 项目维护、
+认可、赞助，也不代表与上述项目存在关联。
+
+部分 Web 界面改编自 sing-box-dashboard，包括应用框架与侧栏、公共视觉变量、
+页面过渡、仪表项目管理、概述卡片组合和 TrafficSparkline 实现：
+
+  Copyright (C) 2022 nekohasekai <contact-sagernet@sekai.icu>
+
+这些部分依据 GPL-3.0-or-later 及有关名称和关联暗示的附加条件发布。
+
+src/web/src/components/ui 中的部分组件以及 src/web/src/lib/cn.ts
+改编自 shadcn/ui：
+
+  Copyright (c) 2023 shadcn
+
+这些部分依据 MIT License 发布。
+
+Web 应用还包含第三方软件与字体。源码分发所需的完整许可证与 NOTICE 已合并到
+THIRD_PARTY_LICENSES.txt；构建产物会另外生成锁定依赖的完整许可证汇总。

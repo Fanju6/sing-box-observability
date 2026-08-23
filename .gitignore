@@ -1,0 +1,44 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+src/server/config.local.yaml
+src/server/*.local.yaml
+src/server/config.yaml
+src/server/server.yaml
+packaging/android/config.yaml
+packaging/android/config.local.yaml
+
+# Runtime state
+src/server/data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.log.*
+*.pid
+
+# Generated binaries and embedded assets
+src/server/*.exe
+src/server/sing-box-observability
+src/server/internal/webui/dist/
+/release/
+node_modules/
+dist/
+.vite/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# Coverage, temporary files, editors, and operating systems
+coverage/
+*.coverprofile
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

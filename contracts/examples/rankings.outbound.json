@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "window": {
+    "from": "2026-08-20T23:00:00Z",
+    "to": "2026-08-21T00:00:00Z",
+    "stepSeconds": 15
+  },
+  "dimension": "outbound",
+  "sort": "traffic",
+  "total": 2,
+  "data": [
+    {
+      "value": "select > hk-01",
+      "uploadBytes": 83886080,
+      "downloadBytes": 1677721600,
+      "connections": 604,
+      "activeConnections": 8,
+      "percentage": 90.77
+    },
+    {
+      "value": "direct",
+      "uploadBytes": 10485760,
+      "downloadBytes": 262144000,
+      "connections": 117,
+      "activeConnections": 4,
+      "percentage": 9.23
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "apiVersion": "v1",
+  "appVersion": "0.1.0-dev",
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "source": {
+    "state": "online",
+    "displayName": "local",
+    "lastAttemptAt": "2026-08-21T00:00:00Z",
+    "lastSuccessAt": "2026-08-21T00:00:00Z",
+    "lastErrorCode": null,
+    "historyAvailableFrom": "2026-08-20T00:00:00Z"
+  },
+  "capabilities": {
+    "upstreamApiVersion": 1,
+    "endpoints": [
+      "capabilities",
+      "metrics",
+      "status",
+      "connections/active",
+      "connections/recent",
+      "events",
+      "top"
+    ],
+    "exposeSensitive": true,
+    "rankingDimensions": [
+      "network",
+      "inbound",
+      "outbound",
+      "rule",
+      "domain",
+      "destination_ip",
+      "source",
+      "process",
+      "user"
+    ],
+    "sensitiveDimensions": [
+      "rule",
+      "domain",
+      "destination_ip",
+      "source",
+      "process",
+      "user"
+    ],
+    "recentConnectionLimit": 2000,
+    "recentTtlSeconds": 3600,
+    "topKSize": 100,
+    "activePageLimit": 500,
+    "cursorPagination": true,
+    "eventReplay": false
+  },
+  "collector": {
+    "scrapeIntervalSeconds": 2,
+    "persistIntervalSeconds": 15,
+    "retentionSeconds": 604800,
+    "maxSeriesPoints": 720,
+    "channels": {
+      "capabilities": {
+        "state": "online",
+        "lastAttemptAt": "2026-08-21T00:00:00Z",
+        "lastSuccessAt": "2026-08-21T00:00:00Z",
+        "lastErrorCode": null
+      },
+      "metrics": {
+        "state": "online",
+        "lastAttemptAt": "2026-08-21T00:00:00Z",
+        "lastSuccessAt": "2026-08-21T00:00:00Z",
+        "lastErrorCode": null
+      },
+      "connections": {
+        "state": "online",
+        "lastAttemptAt": "2026-08-21T00:00:00Z",
+        "lastSuccessAt": "2026-08-21T00:00:00Z",
+        "lastErrorCode": null
+      },
+      "events": {
+        "state": "online",
+        "lastAttemptAt": "2026-08-21T00:00:00Z",
+        "lastSuccessAt": "2026-08-21T00:00:00Z",
+        "lastErrorCode": null,
+        "reconnects": 0,
+        "lastEventAt": "2026-08-21T00:00:00Z",
+        "lastSequence": 42
+      }
+    }
+  }
+}

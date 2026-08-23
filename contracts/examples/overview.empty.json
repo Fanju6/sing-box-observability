@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "sourceState": "connecting",
+  "window": {
+    "from": "2026-08-20T23:00:00Z",
+    "to": "2026-08-21T00:00:00Z",
+    "stepSeconds": 15
+  },
+  "current": null,
+  "rangeTotals": null,
+  "series": [],
+  "topOutbounds": [],
+  "urlTests": [],
+  "apiHealth": null
+}

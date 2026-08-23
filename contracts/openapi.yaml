@@ -1,0 +1,1089 @@
+openapi: 3.1.0
+info:
+  title: sing-box-observability API
+  version: 1.0.0
+  description: >-
+    sing-box-observability 使用的同源只读浏览器 API。
+    这是 BFF 契约，不是上游 /observability/v1 API 的直接复制。
+  license:
+    name: GNU General Public License v3.0 or later
+    identifier: GPL-3.0-or-later
+externalDocs:
+  description: 项目文档
+  url: https://github.com/Fanju6/sing-box-observability
+servers:
+  - url: /
+security:
+  - consoleSession: []
+tags:
+  - name: 系统
+  - name: 会话
+  - name: 可观测性
+  - name: 连接
+paths:
+  /healthz:
+    get:
+      tags: [系统]
+      operationId: getHealth
+      security: []
+      summary: 进程存活检查，不暴露上游细节。
+      responses:
+        "200":
+          description: 进程存活。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /readyz:
+    get:
+      tags: [系统]
+      operationId: getReadiness
+      security: []
+      summary: 服务和存储就绪检查；上游可以仍处于离线状态。
+      responses:
+        "200":
+          description: API 和存储已就绪。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/session:
+    get:
+      tags: [会话]
+      operationId: getSession
+      security: []
+      summary: 返回控制台认证是否启用以及当前是否已认证。
+      responses:
+        "200":
+          description: 会话状态。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+    post:
+      tags: [会话]
+      operationId: createSession
+      security: []
+      summary: 使用控制台令牌换取 HttpOnly Cookie。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 已认证会话，并设置 sbox_observability_session。
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    delete:
+      tags: [会话]
+      operationId: deleteSession
+      summary: 清除控制台会话 Cookie。
+      responses:
+        "204":
+          description: 会话已清除。
+  /api/v1/meta:
+    get:
+      tags: [可观测性]
+      operationId: getMeta
+      summary: 来源状态、capabilities 和采集器限制。
+      responses:
+        "200":
+          description: 元数据和 capabilities。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/overview:
+    get:
+      tags: [可观测性]
+      operationId: getOverview
+      summary: 当前快照、所选区间汇总、趋势点和简要排行。
+      parameters:
+        - $ref: "#/components/parameters/Range"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Step"
+      responses:
+        "200":
+          description: 概述数据；首次成功采集前 current 可以为 null。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/v1/rankings:
+    get:
+      tags: [可观测性]
+      operationId: getRankings
+      summary: 按一个受支持维度聚合已保留连接。
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/RankingDimension"
+        - name: sort
+          in: query
+          schema:
+            $ref: "#/components/schemas/RankingSort"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - $ref: "#/components/parameters/Range"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: 根据保留连接生成排行，并合并查询时的活动连接。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RankingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: 请求的敏感维度已被上游关闭。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/v1/dimensions/series:
+    get:
+      tags: [可观测性]
+      operationId: getDimensionSeries
+      summary: 返回指定网络、入站或出站值的历史序列。
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [network, inbound, outbound]
+        - name: value
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 512
+        - $ref: "#/components/parameters/Range"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Step"
+      responses:
+        "200":
+          description: 维度序列；缺失时间桶的指标为 null。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DimensionSeriesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/v1/connections/active:
+    get:
+      tags: [连接]
+      operationId: getActiveConnections
+      summary: 当前已校准的活动连接，按最新优先排列。
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Network"
+        - $ref: "#/components/parameters/Outbound"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: 活动连接分页。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/connections/recent:
+    get:
+      tags: [连接]
+      operationId: getRecentConnections
+      summary: 控制台保留的已关闭连接，按最新优先排列。
+      parameters:
+        - $ref: "#/components/parameters/Range"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Network"
+        - $ref: "#/components/parameters/Outbound"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: 近期已关闭连接分页。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /api/v1/events:
+    get:
+      tags: [可观测性]
+      operationId: streamEvents
+      summary: 用于来源状态和连接生命周期失效通知的下游 SSE。
+      description: |
+        使用 HttpOnly 会话 Cookie，并在有限内存回放窗口内支持 Last-Event-ID。
+        事件名包括 `hello`、`source.state`、`connection.open`、
+        `connection.close` 和 `resync`。keepalive 注释不是应用事件。
+        收到 `resync` 或回放缺口后，客户端必须重新请求对应 REST 数据。
+      parameters:
+        - name: heartbeat
+          in: query
+          schema:
+            type: string
+            pattern: "^[0-9]+(s|m)$"
+            default: 15s
+        - name: lastEventId
+          in: query
+          description: 浏览器 EventSource 的回放回退参数；Last-Event-ID 请求头优先。
+          schema:
+            type: string
+            pattern: "^[0-9]+$"
+      responses:
+        "200":
+          description: 事件流；每个 data 行都是 EventEnvelope JSON 对象。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    consoleSession:
+      type: apiKey
+      in: cookie
+      name: sbox_observability_session
+  parameters:
+    Range:
+      name: range
+      in: query
+      description: 便捷时间范围，不能与 from/to 同时使用。
+      schema:
+        type: string
+        enum: [15m, 1h, 6h, 24h, 7d]
+        default: 1h
+    From:
+      name: from
+      in: query
+      description: 包含边界的 RFC3339 起点，必须与 to 成对且不能与 range 同时使用。
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      description: 不包含边界的 RFC3339 终点，必须与 from 成对且不能与 range 同时使用。
+      schema:
+        type: string
+        format: date-time
+    Step:
+      name: step
+      in: query
+      description: 请求的时间桶大小；服务可以增大它以限制最多 720 个点。
+      schema:
+        type: string
+        pattern: "^(auto|[0-9]+(s|m|h))$"
+        default: auto
+    Search:
+      name: q
+      in: query
+      description: 在上游实际暴露的字段中进行不区分大小写搜索。
+      schema:
+        type: string
+        maxLength: 200
+    Network:
+      name: network
+      in: query
+      schema:
+        type: string
+        maxLength: 32
+    Outbound:
+      name: outbound
+      in: query
+      schema:
+        type: string
+        maxLength: 512
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  responses:
+    BadRequest:
+      description: 请求格式错误。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: 控制台会话缺失或无效。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    UnprocessableEntity:
+      description: 语法有效，但时间范围或筛选条件无法处理。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: 已达到登录速率限制。
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: API 或存储尚未就绪。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          writeOnly: true
+    SessionInfo:
+      type: object
+      additionalProperties: false
+      required: [authEnabled, authenticated]
+      properties:
+        authEnabled:
+          type: boolean
+        authenticated:
+          type: boolean
+    SourceState:
+      type: string
+      enum: [connecting, online, stale, offline, unauthorized]
+    MetaResponse:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, appVersion, generatedAt, source, capabilities, collector]
+      properties:
+        apiVersion:
+          type: string
+          const: v1
+        appVersion:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        source:
+          $ref: "#/components/schemas/SourceInfo"
+        capabilities:
+          oneOf:
+            - $ref: "#/components/schemas/Capabilities"
+            - type: "null"
+        collector:
+          $ref: "#/components/schemas/CollectorInfo"
+    SourceInfo:
+      type: object
+      additionalProperties: false
+      required: [state, displayName]
+      properties:
+        state:
+          $ref: "#/components/schemas/SourceState"
+        displayName:
+          type: string
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        lastErrorCode:
+          type: [string, "null"]
+        historyAvailableFrom:
+          type: [string, "null"]
+          format: date-time
+    Capabilities:
+      type: object
+      additionalProperties: false
+      required:
+        - upstreamApiVersion
+        - endpoints
+        - exposeSensitive
+        - rankingDimensions
+        - sensitiveDimensions
+        - recentConnectionLimit
+        - recentTtlSeconds
+        - topKSize
+        - activePageLimit
+        - cursorPagination
+        - eventReplay
+      properties:
+        upstreamApiVersion:
+          type: integer
+          const: 1
+        endpoints:
+          type: array
+          minItems: 5
+          uniqueItems: true
+          items:
+            type: string
+        exposeSensitive:
+          type: boolean
+        rankingDimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingDimension"
+          uniqueItems: true
+        sensitiveDimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingDimension"
+          uniqueItems: true
+        recentConnectionLimit:
+          type: integer
+          minimum: 1
+        recentTtlSeconds:
+          type: integer
+          minimum: 1
+        topKSize:
+          type: integer
+          minimum: 1
+        activePageLimit:
+          type: integer
+          minimum: 1
+          maximum: 500
+        cursorPagination:
+          type: boolean
+          const: true
+        eventReplay:
+          type: boolean
+    CollectorInfo:
+      type: object
+      additionalProperties: false
+      required: [scrapeIntervalSeconds, persistIntervalSeconds, retentionSeconds, maxSeriesPoints, channels]
+      properties:
+        scrapeIntervalSeconds:
+          type: number
+          exclusiveMinimum: 0
+        persistIntervalSeconds:
+          type: number
+          exclusiveMinimum: 0
+        retentionSeconds:
+          type: integer
+          minimum: 1
+        maxSeriesPoints:
+          type: integer
+          const: 720
+        channels:
+          $ref: "#/components/schemas/CollectorChannels"
+    CollectorChannel:
+      type: object
+      additionalProperties: false
+      required: [state, lastAttemptAt, lastSuccessAt, lastErrorCode]
+      properties:
+        state:
+          $ref: "#/components/schemas/SourceState"
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        lastErrorCode:
+          type: [string, "null"]
+    EventChannel:
+      type: object
+      additionalProperties: false
+      required: [state, lastAttemptAt, lastSuccessAt, lastErrorCode, reconnects, lastEventAt, lastSequence]
+      properties:
+        state:
+          $ref: "#/components/schemas/SourceState"
+        lastAttemptAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        lastErrorCode:
+          type: [string, "null"]
+        reconnects:
+          type: integer
+          minimum: 0
+        lastEventAt:
+          type: [string, "null"]
+          format: date-time
+        lastSequence:
+          type: integer
+          minimum: 0
+    CollectorChannels:
+      type: object
+      additionalProperties: false
+      required: [capabilities, metrics, connections, events]
+      properties:
+        capabilities:
+          $ref: "#/components/schemas/CollectorChannel"
+        metrics:
+          $ref: "#/components/schemas/CollectorChannel"
+        connections:
+          $ref: "#/components/schemas/CollectorChannel"
+        events:
+          $ref: "#/components/schemas/EventChannel"
+    StatusSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - observedAt
+        - version
+        - uptimeSeconds
+        - memoryBytes
+        - goroutines
+        - activeConnections
+        - recentConnections
+        - connectionsTotal
+        - uploadBytesTotal
+        - downloadBytesTotal
+        - uploadBytesPerSecond
+        - downloadBytesPerSecond
+      properties:
+        observedAt:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptimeSeconds:
+          type: number
+          minimum: 0
+        memoryBytes:
+          type: integer
+          minimum: 0
+        goroutines:
+          type: integer
+          minimum: 0
+        activeConnections:
+          type: integer
+          minimum: 0
+        recentConnections:
+          type: integer
+          minimum: 0
+        connectionsTotal:
+          type: integer
+          minimum: 0
+        uploadBytesTotal:
+          type: integer
+          minimum: 0
+        downloadBytesTotal:
+          type: integer
+          minimum: 0
+        uploadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        downloadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+    TimeWindow:
+      type: object
+      additionalProperties: false
+      required: [from, to, stepSeconds]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        stepSeconds:
+          type: integer
+          minimum: 1
+    RangeTotals:
+      type: object
+      additionalProperties: false
+      required: [uploadBytes, downloadBytes, connections]
+      properties:
+        uploadBytes:
+          type: integer
+          minimum: 0
+        downloadBytes:
+          type: integer
+          minimum: 0
+        connections:
+          type: integer
+          minimum: 0
+    TimePoint:
+      type: object
+      additionalProperties: false
+      required:
+        - timestamp
+        - uploadBytesPerSecond
+        - downloadBytesPerSecond
+        - activeConnections
+        - memoryBytes
+        - goroutines
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        uploadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        downloadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        activeConnections:
+          type: [integer, "null"]
+          minimum: 0
+        memoryBytes:
+          type: [integer, "null"]
+          minimum: 0
+        goroutines:
+          type: [integer, "null"]
+          minimum: 0
+    DimensionTimePoint:
+      type: object
+      additionalProperties: false
+      required: [timestamp, uploadBytesPerSecond, downloadBytesPerSecond, connectionsPerSecond, activeConnections, delayMs]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        uploadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        downloadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        connectionsPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        activeConnections:
+          type: [integer, "null"]
+          minimum: 0
+        delayMs:
+          type: [integer, "null"]
+          minimum: 0
+    DimensionSeriesResponse:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, window, dimension, value, series]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        window:
+          $ref: "#/components/schemas/TimeWindow"
+        dimension:
+          type: string
+          enum: [network, inbound, outbound]
+        value:
+          type: string
+        series:
+          type: array
+          maxItems: 720
+          items:
+            $ref: "#/components/schemas/DimensionTimePoint"
+    UrlTestResult:
+      type: object
+      additionalProperties: false
+      required: [outbound, delayMs, measuredAt, ageSeconds]
+      properties:
+        outbound:
+          type: string
+        delayMs:
+          type: integer
+          minimum: 0
+        measuredAt:
+          type: string
+          format: date-time
+        ageSeconds:
+          type: number
+          minimum: 0
+    CompactRanking:
+      type: object
+      additionalProperties: false
+      required: [value, uploadBytesPerSecond, downloadBytesPerSecond, activeConnections]
+      properties:
+        value:
+          type: string
+        uploadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        downloadBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        activeConnections:
+          type: integer
+          minimum: 0
+    APIEndpointHealth:
+      type: object
+      additionalProperties: false
+      required: [endpoint, status, requestsTotal, requestsPerSecond, averageDurationMs, responseBytesPerSecond]
+      properties:
+        endpoint:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        requestsTotal:
+          type: integer
+          minimum: 0
+        requestsPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        averageDurationMs:
+          type: [number, "null"]
+          minimum: 0
+        responseBytesPerSecond:
+          type: [number, "null"]
+          minimum: 0
+    APIHealthSnapshot:
+      type: object
+      additionalProperties: false
+      required: [recentConnectionsCapacity, recentConnectionsUtilization, sseSubscribers, sseEventsTotal, sseEventsPerSecond, errorRate, endpoints]
+      properties:
+        recentConnectionsCapacity:
+          type: integer
+          minimum: 1
+        recentConnectionsUtilization:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        sseSubscribers:
+          type: integer
+          minimum: 0
+        sseEventsTotal:
+          type: integer
+          minimum: 0
+        sseEventsPerSecond:
+          type: [number, "null"]
+          minimum: 0
+        errorRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        endpoints:
+          type: array
+          maxItems: 128
+          items:
+            $ref: "#/components/schemas/APIEndpointHealth"
+    OverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, sourceState, window, current, rangeTotals, series, topOutbounds, urlTests, apiHealth]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        sourceState:
+          $ref: "#/components/schemas/SourceState"
+        window:
+          $ref: "#/components/schemas/TimeWindow"
+        current:
+          oneOf:
+            - $ref: "#/components/schemas/StatusSnapshot"
+            - type: "null"
+        rangeTotals:
+          oneOf:
+            - $ref: "#/components/schemas/RangeTotals"
+            - type: "null"
+        series:
+          type: array
+          maxItems: 720
+          items:
+            $ref: "#/components/schemas/TimePoint"
+        topOutbounds:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/CompactRanking"
+        urlTests:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/UrlTestResult"
+        apiHealth:
+          oneOf:
+            - $ref: "#/components/schemas/APIHealthSnapshot"
+            - type: "null"
+    RankingDimension:
+      type: string
+      enum: [network, inbound, outbound, rule, domain, destination_ip, source, process, user]
+    RankingSort:
+      type: string
+      enum: [traffic, connections, download, upload]
+      default: traffic
+    RankingItem:
+      type: object
+      additionalProperties: false
+      required: [value, uploadBytes, downloadBytes, connections, activeConnections, percentage]
+      properties:
+        value:
+          type: string
+        uploadBytes:
+          type: integer
+          minimum: 0
+        downloadBytes:
+          type: integer
+          minimum: 0
+        connections:
+          type: integer
+          minimum: 0
+        activeConnections:
+          type: integer
+          minimum: 0
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+    RankingsResponse:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, window, dimension, sort, total, data]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        window:
+          $ref: "#/components/schemas/TimeWindow"
+        dimension:
+          $ref: "#/components/schemas/RankingDimension"
+        sort:
+          $ref: "#/components/schemas/RankingSort"
+        total:
+          type: integer
+          minimum: 0
+        data:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/RankingItem"
+    Connection:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - state
+        - network
+        - inbound
+        - destinationPort
+        - outbound
+        - outboundType
+        - chain
+        - startedAt
+        - closedAt
+        - durationSeconds
+        - upload
+        - download
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          enum: [active, closed]
+        network:
+          type: string
+        inbound:
+          type: string
+        sourceIP:
+          type: string
+        sourcePort:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        sourceMAC:
+          type: string
+        sourceHostname:
+          type: string
+        destinationIP:
+          type: string
+        destinationPort:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        domain:
+          type: string
+        process:
+          type: string
+        user:
+          type: string
+        outbound:
+          type: string
+        outboundType:
+          type: string
+        chain:
+          type: array
+          items:
+            type: string
+        rule:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: [string, "null"]
+          format: date-time
+        durationSeconds:
+          type: number
+          minimum: 0
+        upload:
+          type: integer
+          minimum: 0
+        download:
+          type: integer
+          minimum: 0
+    ConnectionPage:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, total, limit, offset, data]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        total:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+        offset:
+          type: integer
+          minimum: 0
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+    SourceStateEventData:
+      type: object
+      additionalProperties: false
+      required: [state]
+      properties:
+        state:
+          $ref: "#/components/schemas/SourceState"
+        lastSuccessAt:
+          type: [string, "null"]
+          format: date-time
+        errorCode:
+          type: [string, "null"]
+    ResyncEventData:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [replay_gap, slow_consumer, upstream_reconnected, upstream_event_gap, server_restarted]
+    EventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [sequence, generatedAt, type, data]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        generatedAt:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [hello, source.state, connection.open, connection.close, resync]
+        data:
+          oneOf:
+            - $ref: "#/components/schemas/SourceStateEventData"
+            - $ref: "#/components/schemas/Connection"
+            - $ref: "#/components/schemas/ResyncEventData"
+            - type: object
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ApiError"
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId, retryable]
+      properties:
+        code:
+          type: string
+          examples: [UPSTREAM_UNAUTHORIZED]
+        message:
+          type: string
+        requestId:
+          type: string
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties: true

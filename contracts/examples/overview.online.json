@@ -1,0 +1,86 @@
+{
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "sourceState": "online",
+  "window": {
+    "from": "2026-08-20T23:00:00Z",
+    "to": "2026-08-21T00:00:00Z",
+    "stepSeconds": 15
+  },
+  "current": {
+    "observedAt": "2026-08-21T00:00:00Z",
+    "version": "1.13.0-observability",
+    "uptimeSeconds": 86523.25,
+    "memoryBytes": 73400320,
+    "goroutines": 86,
+    "activeConnections": 12,
+    "recentConnections": 284,
+    "connectionsTotal": 18420,
+    "uploadBytesTotal": 835321120,
+    "downloadBytesTotal": 5905580032,
+    "uploadBytesPerSecond": 24576,
+    "downloadBytesPerSecond": 1048576
+  },
+  "rangeTotals": {
+    "uploadBytes": 94371840,
+    "downloadBytes": 1939865600,
+    "connections": 721
+  },
+  "series": [
+    {
+      "timestamp": "2026-08-20T23:59:30Z",
+      "uploadBytesPerSecond": 16384,
+      "downloadBytesPerSecond": 786432,
+      "activeConnections": 10,
+      "memoryBytes": 72351744,
+      "goroutines": 82
+    },
+    {
+      "timestamp": "2026-08-20T23:59:45Z",
+      "uploadBytesPerSecond": 24576,
+      "downloadBytesPerSecond": 1048576,
+      "activeConnections": 12,
+      "memoryBytes": 73400320,
+      "goroutines": 86
+    }
+  ],
+  "topOutbounds": [
+    {
+      "value": "select > hk-01",
+      "uploadBytesPerSecond": 16384,
+      "downloadBytesPerSecond": 786432,
+      "activeConnections": 8
+    },
+    {
+      "value": "direct",
+      "uploadBytesPerSecond": 8192,
+      "downloadBytesPerSecond": 262144,
+      "activeConnections": 4
+    }
+  ],
+  "urlTests": [
+    {
+      "outbound": "hk-01",
+      "delayMs": 48,
+      "measuredAt": "2026-08-20T23:59:50Z",
+      "ageSeconds": 10
+    }
+  ],
+  "apiHealth": {
+    "recentConnectionsCapacity": 2000,
+    "recentConnectionsUtilization": 0.142,
+    "sseSubscribers": 1,
+    "sseEventsTotal": 2842,
+    "sseEventsPerSecond": 1.8,
+    "errorRate": 0.004,
+    "endpoints": [
+      {
+        "endpoint": "metrics",
+        "status": 200,
+        "requestsTotal": 43200,
+        "requestsPerSecond": 0.5,
+        "averageDurationMs": 1.8,
+        "responseBytesPerSecond": 8192
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Console authentication is required",
+    "requestId": "req_0198c0e06d00",
+    "retryable": false,
+    "details": {}
+  }
+}

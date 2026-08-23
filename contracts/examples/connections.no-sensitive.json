@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "data": [
+    {
+      "id": "0198c0e0-6d00-7d12-a710-000000000002",
+      "state": "closed",
+      "network": "udp",
+      "inbound": "tun/tun-in",
+      "destinationPort": 443,
+      "outbound": "direct",
+      "outboundType": "direct",
+      "chain": ["direct"],
+      "startedAt": "2026-08-20T23:50:00Z",
+      "closedAt": "2026-08-20T23:50:03Z",
+      "durationSeconds": 3,
+      "upload": 1024,
+      "download": 4096
+    }
+  ]
+}

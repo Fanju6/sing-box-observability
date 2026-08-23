@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-08-21T00:00:00Z",
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "data": [
+    {
+      "id": "0198c0e0-6d00-7d12-a710-000000000001",
+      "state": "active",
+      "network": "tcp",
+      "inbound": "tun/tun-in",
+      "sourceIP": "192.0.2.10",
+      "sourcePort": 51423,
+      "destinationIP": "203.0.113.20",
+      "destinationPort": 443,
+      "domain": "example.com",
+      "process": "/usr/bin/browser",
+      "outbound": "hk-01",
+      "outboundType": "shadowsocks",
+      "chain": ["select", "hk-01"],
+      "rule": "domain_suffix=example.com => route(hk-01)",
+      "startedAt": "2026-08-20T23:58:30Z",
+      "closedAt": null,
+      "durationSeconds": 90,
+      "upload": 32768,
+      "download": 2097152
+    }
+  ]
+}

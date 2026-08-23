@@ -1,0 +1,30 @@
+server:
+  # 仅限设备本地访问；在同一设备打开 http://127.0.0.1:9095。
+  listen: 127.0.0.1:9095
+  trusted_proxies: []
+  secure_cookie: false
+
+console:
+  # 只有 server.listen 为回环地址时才允许留空。
+  # 需要令牌时优先使用 SBOBS_CONSOLE_AUTH_TOKEN。
+  auth_token: ""
+  session_ttl: 24h
+
+singbox:
+  name: local
+  # 挂载 /observability/v1 的 sing-box 监听地址。
+  base_url: http://127.0.0.1:9090
+  # 启用认证时必须与监听器密钥一致。
+  # 优先使用 SBOBS_SINGBOX_TOKEN，避免把密钥写入文件。
+  token: ""
+
+collector:
+  scrape_interval: 2s
+  persist_interval: 15s
+  reconcile_interval: 3s
+  stale_after: 30s
+
+storage:
+  # expose_sensitive 启用后可能包含敏感连接历史。
+  path: /data/adb/sing-box-observability/data/observability.db
+  retention: 168h

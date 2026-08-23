@@ -1,0 +1,12 @@
+id: 41
+event: hello
+data: {"sequence":41,"generatedAt":"2026-08-21T00:00:00Z","type":"hello","data":{}}
+
+id: 42
+event: source.state
+data: {"sequence":42,"generatedAt":"2026-08-21T00:00:01Z","type":"source.state","data":{"state":"stale","lastSuccessAt":"2026-08-21T00:00:00Z","errorCode":"UPSTREAM_UNAVAILABLE"}}
+
+id: 43
+event: resync
+data: {"sequence":43,"generatedAt":"2026-08-21T00:00:02Z","type":"resync","data":{"reason":"upstream_reconnected"}}
+

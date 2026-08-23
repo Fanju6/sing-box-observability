@@ -1,0 +1,13 @@
+allowBuilds:
+  esbuild: true
+  msw: true
+
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - '@vitejs/plugin-react@6.1.0'
+  - i18next@26.4.0
+
+peerDependencyRules:
+  allowedVersions:
+    typescript: ">=5 <8"

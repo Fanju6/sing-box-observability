@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android ARM64 release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13
+          cache: pnpm
+          cache-dependency-path: src/web/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/server/go.mod
+          cache-dependency-path: src/server/go.sum
+
+      - name: Build release folder
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: bash ./scripts/build-android.sh
+
+      - name: Create archives and checksums
+        run: |
+          archive="sing-box-observability-${GITHUB_REF_NAME}-android-arm64.zip"
+          (cd release && zip -9 -r "$archive" android-arm64)
+          (cd release && sha256sum "$archive" > "$archive.sha256")
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "release/sing-box-observability-${GITHUB_REF_NAME}-android-arm64.zip" \
+            "release/sing-box-observability-${GITHUB_REF_NAME}-android-arm64.zip.sha256" \
+            --verify-tag \
+            --generate-notes

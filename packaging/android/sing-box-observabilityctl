@@ -1,0 +1,215 @@
+#!/system/bin/sh
+
+umask 077
+
+BASE_DIR="${SBOBS_HOME:-/data/adb/sing-box-observability}"
+BIN="$BASE_DIR/sing-box-observability"
+CONFIG="$BASE_DIR/config.yaml"
+DATA_DIR="$BASE_DIR/data"
+PID_FILE="$BASE_DIR/sing-box-observability.pid"
+LOG_FILE="$BASE_DIR/sing-box-observability.log"
+LOCK_DIR="$BASE_DIR/.control.lock"
+LOCK_OWNER_FILE="$LOCK_DIR/owner"
+MAX_LOG_BYTES="${SBOBS_LOG_MAX_BYTES:-1048576}"
+READY_URL="${SBOBS_READY_URL:-http://127.0.0.1:9095/readyz}"
+
+read_pid() {
+  [ -f "$PID_FILE" ] || return 1
+  pid="$(cat "$PID_FILE" 2>/dev/null)"
+  [ -n "$pid" ] || return 1
+}
+
+is_our_process() {
+  candidate="$1"
+  [ -d "/proc/$candidate" ] || return 1
+  executable="$(readlink "/proc/$candidate/exe" 2>/dev/null)"
+  [ "$executable" = "$BIN" ] || [ "$executable" = "$BIN (deleted)" ]
+}
+
+is_running() {
+  read_pid || return 1
+  kill -0 "$pid" 2>/dev/null && is_our_process "$pid"
+}
+
+boot_id() {
+  cat /proc/sys/kernel/random/boot_id 2>/dev/null || printf 'unknown'
+}
+
+process_start_ticks() {
+  awk '{print $22}' "/proc/$1/stat" 2>/dev/null
+}
+
+lock_owner_active() {
+  [ -f "$LOCK_OWNER_FILE" ] || return 1
+  read -r owner_pid owner_boot owner_start <"$LOCK_OWNER_FILE" || return 1
+  [ -n "$owner_pid" ] && [ -n "$owner_boot" ] && [ -n "$owner_start" ] || return 1
+  [ "$owner_boot" = "$(boot_id)" ] || return 1
+  kill -0 "$owner_pid" 2>/dev/null || return 1
+  [ "$(process_start_ticks "$owner_pid")" = "$owner_start" ]
+}
+
+release_lock() {
+  if [ -f "$LOCK_OWNER_FILE" ]; then
+    read -r owner_pid _ <"$LOCK_OWNER_FILE" 2>/dev/null || owner_pid=''
+    [ "$owner_pid" = "$$" ] || return 0
+  fi
+  rm -f "$LOCK_OWNER_FILE"
+  rmdir "$LOCK_DIR" 2>/dev/null
+}
+
+acquire_lock() {
+  mkdir -p "$BASE_DIR" || return 1
+  self_boot="$(boot_id)"
+  self_start="$(process_start_ticks "$$")"
+  [ -n "$self_boot" ] && [ -n "$self_start" ] || {
+    echo "cannot read control lock owner metadata" >&2
+    return 1
+  }
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    lock_wait=0
+    while [ "$lock_wait" -lt 2 ]; do
+      if lock_owner_active; then
+        echo "another sing-box-observabilityctl operation is running" >&2
+        return 1
+      fi
+      lock_wait=$((lock_wait + 1))
+      sleep 1
+    done
+    rm -f "$LOCK_OWNER_FILE"
+    if ! rmdir "$LOCK_DIR" 2>/dev/null || ! mkdir "$LOCK_DIR" 2>/dev/null; then
+      echo "cannot recover stale control lock: $LOCK_DIR" >&2
+      return 1
+    fi
+  fi
+  if ! printf '%s %s %s\n' "$$" "$self_boot" "$self_start" >"$LOCK_OWNER_FILE"; then
+    rm -f "$LOCK_OWNER_FILE"
+    rmdir "$LOCK_DIR" 2>/dev/null
+    echo "cannot write control lock owner: $LOCK_OWNER_FILE" >&2
+    return 1
+  fi
+  trap 'release_lock' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
+
+rotate_log() {
+  [ -f "$LOG_FILE" ] || return 0
+  bytes="$(wc -c <"$LOG_FILE" 2>/dev/null)"
+  [ "${bytes:-0}" -lt "$MAX_LOG_BYTES" ] && return 0
+  rm -f "$LOG_FILE.1"
+  mv "$LOG_FILE" "$LOG_FILE.1"
+}
+
+start_service() {
+  if is_running; then
+    echo "sing-box-observability is already running (PID $pid)"
+    return 0
+  fi
+  if read_pid; then
+    echo "removing stale PID file; PID $pid is not sing-box-observability" >&2
+    rm -f "$PID_FILE"
+  fi
+  [ -x "$BIN" ] || {
+    echo "binary is missing or not executable: $BIN" >&2
+    return 1
+  }
+  [ -f "$CONFIG" ] || {
+    echo "configuration is missing: $CONFIG" >&2
+    return 1
+  }
+  mkdir -p "$DATA_DIR" || return 1
+  chmod 700 "$BASE_DIR" "$DATA_DIR" 2>/dev/null
+  chmod 600 "$CONFIG" 2>/dev/null
+  for sensitive_file in "$DATA_DIR"/* "$LOG_FILE"; do
+    [ -f "$sensitive_file" ] && chmod 600 "$sensitive_file" 2>/dev/null
+  done
+  rotate_log || return 1
+  cd "$BASE_DIR" || return 1
+  nohup "$BIN" -config "$CONFIG" </dev/null >>"$LOG_FILE" 2>&1 &
+  pid=$!
+  printf '%s\n' "$pid" >"$PID_FILE"
+
+  if ! command -v curl >/dev/null 2>&1; then
+    sleep 1
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$PID_FILE"
+      echo "sing-box-observability failed to start; inspect $LOG_FILE" >&2
+      return 1
+    fi
+  else
+    count=0
+    ready=0
+    while [ "$count" -lt 10 ]; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        echo "sing-box-observability failed to start; inspect $LOG_FILE" >&2
+        return 1
+      fi
+      if curl -fsS --max-time 1 "$READY_URL" >/dev/null 2>&1; then
+        ready=1
+        break
+      fi
+      count=$((count + 1))
+      sleep 1
+    done
+    if [ "$ready" -ne 1 ]; then
+      echo "sing-box-observability did not become ready at $READY_URL; inspect $LOG_FILE" >&2
+      return 1
+    fi
+  fi
+  echo "sing-box-observability started (PID $pid)"
+  echo "Open http://127.0.0.1:9095"
+}
+
+stop_service() {
+  if ! is_running; then
+    if read_pid; then
+      echo "refusing to signal PID $pid because it is not sing-box-observability" >&2
+      rm -f "$PID_FILE"
+    else
+      echo "sing-box-observability is not running"
+    fi
+    return 0
+  fi
+  target_pid="$pid"
+  kill "$target_pid" 2>/dev/null || return 1
+  count=0
+  while kill -0 "$target_pid" 2>/dev/null && [ "$count" -lt 15 ]; do
+    sleep 1
+    count=$((count + 1))
+  done
+  if kill -0 "$target_pid" 2>/dev/null; then
+    echo "process $target_pid did not stop within 15 seconds" >&2
+    return 1
+  fi
+  rm -f "$PID_FILE"
+  echo "sing-box-observability stopped"
+}
+
+case "${1:-status}" in
+  start)
+    acquire_lock && start_service
+    ;;
+  stop)
+    acquire_lock && stop_service
+    ;;
+  restart)
+    acquire_lock && stop_service && start_service
+    ;;
+  status)
+    if is_running; then
+      echo "sing-box-observability is running (PID $pid)"
+    else
+      echo "sing-box-observability is stopped"
+      exit 1
+    fi
+    ;;
+  logs)
+    tail -n "${2:-100}" "$LOG_FILE"
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status|logs [lines]}" >&2
+    exit 2
+    ;;
+esac

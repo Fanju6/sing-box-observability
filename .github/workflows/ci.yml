@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13
+          cache: pnpm
+          cache-dependency-path: src/web/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/server/go.mod
+          cache-dependency-path: src/server/go.sum
+
+      - name: Install frontend dependencies
+        run: pnpm --dir src/web install --frozen-lockfile
+
+      - name: Verify generated OpenAPI types
+        run: |
+          pnpm --dir src/web typegen
+          git diff --exit-code -- src/web/src/api/schema.d.ts
+
+      - name: Lint frontend
+        run: pnpm --dir src/web lint
+
+      - name: Typecheck frontend
+        run: pnpm --dir src/web typecheck
+
+      - name: Run frontend unit tests
+        run: pnpm --dir src/web test:unit
+
+      - name: Build frontend
+        run: |
+          pnpm --dir src/web build
+          test ! -e src/web/dist/mockServiceWorker.js
+
+      - name: Install Playwright browser
+        run: pnpm --dir src/web exec playwright install --with-deps chromium
+
+      - name: Run responsive browser smoke tests
+        run: pnpm --dir src/web test:e2e
+
+      - name: Stage embedded frontend
+        run: |
+          rm -rf src/server/internal/webui/dist
+          mkdir -p src/server/internal/webui/dist
+          cp -R src/web/dist/. src/server/internal/webui/dist/
+
+      - name: Verify Go formatting
+        working-directory: src/server
+        run: |
+          unformatted="$(gofmt -l .)"
+          test -z "$unformatted" || {
+            printf 'Unformatted Go files:\n%s\n' "$unformatted"
+            exit 1
+          }
+
+      - name: Verify Go modules
+        working-directory: src/server
+        run: |
+          go mod verify
+          go mod tidy -diff
+
+      - name: Vet and test backend
+        working-directory: src/server
+        run: |
+          go vet ./...
+          go test ./...
+          go test -race ./internal/collector ./internal/events
+          go test -tags webui ./...
+
+      - name: Scan reachable Go vulnerabilities
+        working-directory: src/server
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+      - name: Audit production dependencies
+        run: pnpm --dir src/web audit --prod --audit-level high
+
+      - name: Cross-compile Android ARM64
+        working-directory: src/server
+        env:
+          CGO_ENABLED: '0'
+          GOOS: android
+          GOARCH: arm64
+        run: |
+          go build -buildvcs=false -tags webui -trimpath \
+            -o /tmp/sing-box-observability ./cmd/sing-box-observability
+          go version -m /tmp/sing-box-observability
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3

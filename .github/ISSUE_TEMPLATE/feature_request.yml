@@ -1,0 +1,27 @@
+name: 功能建议
+description: 提议只读可观测性范围内的改进。
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: checkboxes
+    attributes:
+      label: 范围确认
+      options:
+        - label: 需求只使用只读 `/observability/v1` API。
+          required: true
+        - label: 需求不涉及修改配置、切换代理或关闭连接。
+          required: true
+  - type: textarea
+    attributes:
+      label: 问题
+      description: 请先描述用户问题，再描述期望界面。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 其他方案

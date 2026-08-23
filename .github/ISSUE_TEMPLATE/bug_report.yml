@@ -1,0 +1,39 @@
+name: 缺陷报告
+description: 报告可以稳定复现的问题。
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: checkboxes
+    attributes:
+      label: 范围确认
+      options:
+        - label: 问题属于只读可观测性面板，而不是其他 sing-box 功能。
+          required: true
+        - label: 已删除令牌、连接记录和其他隐私数据。
+          required: true
+  - type: input
+    attributes:
+      label: 控制台版本
+      placeholder: 请粘贴 sing-box-observability -version 的输出
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 运行环境
+      description: Android/设备架构、浏览器以及 sing-box observability API 版本。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 预期与实际行为
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 脱敏诊断
+      description: 只附加安全的日志或截图，禁止包含令牌和敏感连接数据。
