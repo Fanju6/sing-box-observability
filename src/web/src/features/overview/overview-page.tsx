@@ -74,7 +74,7 @@ export function OverviewPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const { data: meta } = useMeta()
-  const { data, isLoading, error, refetch } = useOverview('1h')
+  const { data, isLoading, error, refetch } = useOverview({ range: '1h' })
   const browserStream = useSSEState()
   const [managing, setManaging] = useState(false)
   const [enabledItems, setEnabledItems] = useState<OverviewItem[]>(loadItems)

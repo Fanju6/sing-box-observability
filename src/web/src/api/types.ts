@@ -39,7 +39,10 @@ export type EventData = EventEnvelope['data']
 export type EventType = EventEnvelope['type']
 export type ErrorResponse = Schemas['ErrorResponse']
 
-export type TimeRange = '15m' | '1h' | '6h' | '24h' | '7d'
+export type TimeRange = components['parameters']['Range']
+export type TimeWindowSelection =
+  | { range: TimeRange }
+  | { from: string; to: string }
 
 export interface ConnectionsQuery {
   tab: 'active' | 'recent'

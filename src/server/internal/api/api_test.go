@@ -28,6 +28,20 @@ func TestRedactConnectionsRemovesEverySensitiveField(t *testing.T) {
 	}
 }
 
+func TestPresetRangeIncludesLongTermWindows(t *testing.T) {
+	testCases := map[string]time.Duration{
+		"7d":  7 * 24 * time.Hour,
+		"30d": 30 * 24 * time.Hour,
+		"90d": 90 * 24 * time.Hour,
+	}
+	for value, expected := range testCases {
+		actual, ok := presetRange(value)
+		if !ok || actual != expected {
+			t.Fatalf("presetRange(%q) = %v, %v; want %v, true", value, actual, ok, expected)
+		}
+	}
+}
+
 func TestProtectedAPIAndSensitiveDimension(t *testing.T) {
 	upstream := httptest.NewServer(fakeupstream.New("online").Handler())
 	defer upstream.Close()

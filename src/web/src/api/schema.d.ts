@@ -506,7 +506,7 @@ export interface components {
     };
     parameters: {
         /** @description 便捷时间范围，不能与 from/to 同时使用。 */
-        Range: "15m" | "1h" | "6h" | "24h" | "7d";
+        Range: "15m" | "1h" | "6h" | "24h" | "7d" | "30d" | "90d";
         /** @description 包含边界的 RFC3339 起点，必须与 to 成对且不能与 range 同时使用。 */
         From: string;
         /** @description 不包含边界的 RFC3339 终点，必须与 from 成对且不能与 range 同时使用。 */

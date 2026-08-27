@@ -105,6 +105,25 @@
     "quality": "Quality & Latency",
     "delay": "Latency"
   },
+  "timeRange": {
+    "label": "Time Range",
+    "fifteenMinutes": "15m",
+    "oneHour": "1h",
+    "sixHours": "6h",
+    "twentyFourHours": "24h",
+    "sevenDays": "7d",
+    "thirtyDays": "30d",
+    "ninetyDays": "90d",
+    "custom": "Custom",
+    "customTitle": "Custom Time Range",
+    "from": "Start",
+    "to": "End",
+    "availableSince": "Available history starts at {{date}}.",
+    "required": "Select both a start and end time.",
+    "invalidOrder": "The end time must be later than the start time.",
+    "outsideRetention": "The selected time is outside the current retention window.",
+    "apply": "Apply"
+  },
   "connections": {
     "title": "Connections",
     "activeTab": "Active",

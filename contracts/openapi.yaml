@@ -308,7 +308,7 @@ components:
       description: 便捷时间范围，不能与 from/to 同时使用。
       schema:
         type: string
-        enum: [15m, 1h, 6h, 24h, 7d]
+        enum: [15m, 1h, 6h, 24h, 7d, 30d, 90d]
         default: 1h
     From:
       name: from

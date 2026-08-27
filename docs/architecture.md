@@ -97,7 +97,7 @@ Go BFF 确保上游令牌不会进入浏览器，让所有浏览器共享一条�
 | `GET /api/v1/connections/recent` | SQLite 中保留的近期连接 |
 | `GET /api/v1/events` | 来源和连接生命周期 SSE |
 
-时间预设为 `15m`、`1h`、`6h`、`24h` 和 `7d`。自定义 `from`/`to` 使用 RFC3339，不能与 `range` 同时使用。缺失、重置、采样不足或敏感字段关闭时使用 `null` 或省略字段，不伪造零值。
+时间预设为 `15m`、`1h`、`6h`、`24h`、`7d`、`30d` 和 `90d`。自定义 `from`/`to` 使用 RFC3339，不能与 `range` 同时使用。缺失、重置、采样不足或敏感字段关闭时使用 `null` 或省略字段，不伪造零值。
 
 浏览器 SSE 事件包括 `hello`、`source.state`、`connection.open`、`connection.close` 和 `resync`。SSE 只负责失效通知和降低延迟，REST 响应仍是真值来源。
 

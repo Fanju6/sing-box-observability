@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useActiveConnections, useRecentConnections } from '@/api/hooks'
-import type { Connection, TimeRange } from '@/api/types'
+import { useActiveConnections, useMeta, useRecentConnections } from '@/api/hooks'
+import type { Connection, TimeWindowSelection } from '@/api/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { PageHeader } from '@/components/layout/page-header'
+import { TimeRangePicker } from '@/components/time-range-picker'
 import { EmptyState, ErrorState } from '@/components/data-state/states'
 import { formatBytes, formatLocalDateTime, formatCount, formatDuration } from '@/lib/format'
 import { Search, ChevronDown, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { timeWindowKey } from '@/lib/time-window'
 
 const PAGE_SIZE = 50
 
@@ -50,6 +52,7 @@ export function ConnectionsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const isMobile = useIsMobile()
+  const { data: meta } = useMeta()
   const [urlParams, setUrlParams] = useSearchParams()
   const [tab, setTab] = useState<'active' | 'recent'>(() => urlParams.get('tab') === 'recent' ? 'recent' : 'active')
   const [search, setSearch] = useState(() => urlParams.get('q') ?? '')
@@ -57,9 +60,11 @@ export function ConnectionsPage() {
   const [outbound, setOutbound] = useState(() => urlParams.get('outbound') ?? '')
   const [page, setPage] = useState(() => Math.max(1, Number.parseInt(urlParams.get('page') ?? '1', 10) || 1))
   const [selected, setSelected] = useState<Connection | null>(null)
+  const [recentWindow, setRecentWindow] = useState<TimeWindowSelection>({ range: '1h' })
   const debouncedSearch = useDebounce(search, 300)
+  const recentWindowValue = timeWindowKey(recentWindow)
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, tab, network, outbound])
+  useEffect(() => { setPage(1) }, [debouncedSearch, tab, network, outbound, recentWindowValue])
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -75,7 +80,7 @@ export function ConnectionsPage() {
 
   const filters = { q: debouncedSearch || undefined, network: network || undefined, outbound: outbound || undefined, page, limit: PAGE_SIZE }
   const activeQuery = useActiveConnections(filters)
-  const recentQuery = useRecentConnections({ range: '1h' as TimeRange, ...filters })
+  const recentQuery = useRecentConnections({ window: recentWindow, ...filters })
 
   const { data, isLoading, error, refetch, isFetching } = tab === 'active' ? activeQuery : recentQuery
 
@@ -102,10 +107,20 @@ export function ConnectionsPage() {
           <Tabs value={tab} onValueChange={(v) => setTab(v as 'active' | 'recent')} className="w-full">
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <TabsList>
-                  <TabsTrigger value="active">{t('connections.activeTab')}</TabsTrigger>
-                  <TabsTrigger value="recent">{t('connections.recentTab')}</TabsTrigger>
-                </TabsList>
+                <div className="flex items-center gap-2">
+                  <TabsList>
+                    <TabsTrigger value="active">{t('connections.activeTab')}</TabsTrigger>
+                    <TabsTrigger value="recent">{t('connections.recentTab')}</TabsTrigger>
+                  </TabsList>
+                  {tab === 'recent' && (
+                    <TimeRangePicker
+                      value={recentWindow}
+                      onChange={setRecentWindow}
+                      retentionSeconds={meta?.collector.retentionSeconds}
+                      historyAvailableFrom={meta?.source.historyAvailableFrom}
+                    />
+                  )}
+                </div>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-faint)]" />
                   <Input

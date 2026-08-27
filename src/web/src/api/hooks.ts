@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { api, queryKeys } from '@/api'
 import type {
   TimeRange,
+  TimeWindowSelection,
   SessionResponse,
   MetaResponse,
   OverviewResponse,
@@ -10,10 +11,9 @@ import type {
   DimensionSeriesResponse,
 } from '@/api/types'
 
-function rangeToParams(range?: TimeRange, from?: string, to?: string) {
-  if (from && to) return { from, to }
-  if (range) return { range }
-  return { range: '1h' as const }
+function windowToParams(window?: TimeWindowSelection) {
+  if (window && 'from' in window) return { from: window.from, to: window.to }
+  return { range: window?.range ?? ('1h' as TimeRange) }
 }
 
 export function useSession() {
@@ -52,10 +52,11 @@ export function useMeta() {
   })
 }
 
-export function useOverview(range?: TimeRange, from?: string, to?: string) {
+export function useOverview(window?: TimeWindowSelection) {
+  const windowParams = windowToParams(window)
   return useQuery<OverviewResponse>({
-    queryKey: queryKeys.overview(range ?? (from && to ? `${from}-${to}` : '1h')),
-    queryFn: () => api.getOverview(rangeToParams(range, from, to)),
+    queryKey: queryKeys.overview(windowParams),
+    queryFn: () => api.getOverview(windowParams),
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
   })
@@ -64,20 +65,18 @@ export function useOverview(range?: TimeRange, from?: string, to?: string) {
 export function useRankings(params: {
   dimension: string
   sort?: string
-  range?: TimeRange
-  from?: string
-  to?: string
+  window?: TimeWindowSelection
   limit?: number
   enabled?: boolean
 }) {
   return useQuery<RankingsResponse>({
-    queryKey: queryKeys.rankings({ dimension: params.dimension, sort: params.sort, range: params.range, from: params.from, to: params.to, limit: params.limit }),
+    queryKey: queryKeys.rankings({ dimension: params.dimension, sort: params.sort, ...windowToParams(params.window), limit: params.limit }),
     queryFn: () =>
       api.getRankings({
         dimension: params.dimension,
         sort: params.sort ?? 'traffic',
         limit: params.limit ?? 10,
-        ...rangeToParams(params.range, params.from, params.to),
+        ...windowToParams(params.window),
       }),
     enabled: params.enabled ?? true,
     staleTime: 30_000,
@@ -91,23 +90,22 @@ export function useRankings(params: {
   })
 }
 
-export function useTrends(range?: TimeRange, from?: string, to?: string) {
-  return useOverview(range, from, to)
+export function useTrends(window?: TimeWindowSelection) {
+  return useOverview(window)
 }
 
 export function useDimensionSeries(params: {
   dimension: 'network' | 'inbound' | 'outbound'
   value: string
-  range?: TimeRange
-  from?: string
-  to?: string
+  window?: TimeWindowSelection
 }) {
+  const windowParams = windowToParams(params.window)
   return useQuery<DimensionSeriesResponse>({
-    queryKey: queryKeys.dimensionSeries(params),
+    queryKey: queryKeys.dimensionSeries({ dimension: params.dimension, value: params.value, ...windowParams }),
     queryFn: () => api.getDimensionSeries({
       dimension: params.dimension,
       value: params.value,
-      ...rangeToParams(params.range, params.from, params.to),
+      ...windowParams,
     }),
     enabled: params.value.length > 0,
     staleTime: 15_000,
@@ -145,7 +143,7 @@ export function useActiveConnections(params?: {
 }
 
 export function useRecentConnections(params?: {
-  range?: TimeRange
+  window?: TimeWindowSelection
   q?: string
   network?: string
   outbound?: string
@@ -155,7 +153,7 @@ export function useRecentConnections(params?: {
   const offset = ((params?.page ?? 1) - 1) * (params?.limit ?? 50)
   return useQuery<ConnectionPage>({
     queryKey: queryKeys.recentConnections({
-      range: params?.range ?? '1h',
+      ...windowToParams(params?.window),
       q: params?.q,
       network: params?.network,
       outbound: params?.outbound,
@@ -164,7 +162,7 @@ export function useRecentConnections(params?: {
     }),
     queryFn: () =>
       api.getRecentConnections({
-        ...rangeToParams(params?.range),
+        ...windowToParams(params?.window),
         q: params?.q || undefined,
         network: params?.network || undefined,
         outbound: params?.outbound || undefined,

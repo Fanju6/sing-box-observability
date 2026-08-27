@@ -259,6 +259,10 @@ func presetRange(v string) (time.Duration, bool) {
 		return 24 * time.Hour, true
 	case "7d":
 		return 7 * 24 * time.Hour, true
+	case "30d":
+		return 30 * 24 * time.Hour, true
+	case "90d":
+		return 90 * 24 * time.Hour, true
 	}
 	return 0, false
 }

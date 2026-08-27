@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRankings, useMeta } from '@/api/hooks'
-import type { RankingDimension, RankingSort, TimeRange } from '@/api/types'
+import type { RankingDimension, RankingSort, TimeWindowSelection } from '@/api/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { RankingsBarChart } from '@/components/charts/rankings-bar'
 import { EmptyState, ErrorState, CardSkeleton } from '@/components/data-state/states'
 import { PageHeader } from '@/components/layout/page-header'
+import { TimeRangePicker } from '@/components/time-range-picker'
 import { formatBytes, formatCount } from '@/lib/format'
 import { Lock } from 'lucide-react'
 
@@ -17,14 +18,6 @@ const sortOptions: { value: RankingSort; labelKey: string }[] = [
   { value: 'connections', labelKey: 'rankings.sortConnections' },
   { value: 'download', labelKey: 'rankings.sortDownload' },
   { value: 'upload', labelKey: 'rankings.sortUpload' },
-]
-
-const ranges: { value: TimeRange; labelKey: string }[] = [
-  { value: '15m', labelKey: 'trends.fifteenMinutes' },
-  { value: '1h', labelKey: 'trends.oneHour' },
-  { value: '6h', labelKey: 'trends.sixHours' },
-  { value: '24h', labelKey: 'trends.twentyFourHours' },
-  { value: '7d', labelKey: 'trends.sevenDays' },
 ]
 
 const dimensionLabelKeys: Record<RankingDimension, string> = {
@@ -48,7 +41,7 @@ export function RankingsPage() {
   const { data: meta } = useMeta()
   const [dimension, setDimension] = useState<RankingDimension>('outbound')
   const [sort, setSort] = useState<RankingSort>('traffic')
-  const [range, setRange] = useState<TimeRange>('1h')
+  const [window, setWindow] = useState<TimeWindowSelection>({ range: '1h' })
 
   const availableDimensions = meta?.capabilities?.rankingDimensions ?? baseDimensions
   const sensitiveDimensions = meta?.capabilities?.sensitiveDimensions ?? allDimensions.filter((item) => !baseDimensions.includes(item))
@@ -57,7 +50,7 @@ export function RankingsPage() {
   const { data, isLoading, error, refetch } = useRankings({
     dimension,
     sort,
-    range,
+    window,
     limit: 20,
     enabled: !isSensitiveDisabled,
   })
@@ -80,16 +73,12 @@ export function RankingsPage() {
               })}
             </SelectContent>
           </Select>
-          <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
-            <SelectTrigger className="w-20">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ranges.map((r) => (
-                <SelectItem key={r.value} value={r.value}>{t(r.labelKey)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TimeRangePicker
+            value={window}
+            onChange={setWindow}
+            retentionSeconds={meta?.collector.retentionSeconds}
+            historyAvailableFrom={meta?.source.historyAvailableFrom}
+          />
         </div>
         }
       />

@@ -105,6 +105,25 @@
     "quality": "质量与延迟",
     "delay": "延迟"
   },
+  "timeRange": {
+    "label": "时间范围",
+    "fifteenMinutes": "15分钟",
+    "oneHour": "1小时",
+    "sixHours": "6小时",
+    "twentyFourHours": "24小时",
+    "sevenDays": "7天",
+    "thirtyDays": "30天",
+    "ninetyDays": "90天",
+    "custom": "自定义",
+    "customTitle": "自定义时间范围",
+    "from": "开始时间",
+    "to": "结束时间",
+    "availableSince": "当前可查询的历史数据起点为 {{date}}。",
+    "required": "请选择完整的开始和结束时间。",
+    "invalidOrder": "结束时间必须晚于开始时间。",
+    "outsideRetention": "选择的时间超出了当前数据保留范围。",
+    "apply": "应用"
+  },
   "connections": {
     "title": "连接",
     "activeTab": "活动",

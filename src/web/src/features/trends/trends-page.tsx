@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, ArrowDown, ArrowUp, Database } from 'lucide-react'
-import { useDimensionSeries, useOverview, useRankings } from '@/api/hooks'
-import type { TimeRange } from '@/api/types'
+import { useDimensionSeries, useMeta, useOverview, useRankings } from '@/api/hooks'
+import type { TimeWindowSelection } from '@/api/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrafficChart } from '@/components/charts/traffic-chart'
 import { MultiLineChart } from '@/components/charts/line-chart'
@@ -10,37 +10,31 @@ import { ChartSkeleton, ErrorState } from '@/components/data-state/states'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/layout/page-header'
+import { TimeRangePicker } from '@/components/time-range-picker'
 import { formatBytesCompact, formatCount, formatDelay } from '@/lib/format'
 import { cn } from '@/lib/cn'
-
-const ranges: { value: TimeRange; labelKey: string }[] = [
-  { value: '15m', labelKey: 'trends.fifteenMinutes' },
-  { value: '1h', labelKey: 'trends.oneHour' },
-  { value: '6h', labelKey: 'trends.sixHours' },
-  { value: '24h', labelKey: 'trends.twentyFourHours' },
-  { value: '7d', labelKey: 'trends.sevenDays' },
-]
 
 type TrendDimension = 'global' | 'network' | 'inbound' | 'outbound'
 
 export function TrendsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const [range, setRange] = useState<TimeRange>('1h')
+  const { data: meta } = useMeta()
+  const [window, setWindow] = useState<TimeWindowSelection>({ range: '1h' })
   const [dimension, setDimension] = useState<TrendDimension>('global')
   const [value, setValue] = useState('')
-  const overview = useOverview(range)
+  const overview = useOverview(window)
   const rankings = useRankings({
     dimension: dimension === 'global' ? 'outbound' : dimension,
     sort: 'traffic',
-    range,
+    window,
     limit: 50,
     enabled: dimension !== 'global',
   })
   const dimensionSeries = useDimensionSeries({
     dimension: dimension === 'global' ? 'outbound' : dimension,
     value,
-    range,
+    window,
   })
 
   useEffect(() => {
@@ -66,10 +60,12 @@ export function TrendsPage() {
       <PageHeader
         title={t('trends.title')}
         actions={
-        <Select value={range} onValueChange={(next) => setRange(next as TimeRange)}>
-          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-          <SelectContent>{ranges.map((item) => <SelectItem key={item.value} value={item.value}>{t(item.labelKey)}</SelectItem>)}</SelectContent>
-        </Select>
+          <TimeRangePicker
+            value={window}
+            onChange={setWindow}
+            retentionSeconds={meta?.collector.retentionSeconds}
+            historyAvailableFrom={meta?.source.historyAvailableFrom}
+          />
         }
       />
 
