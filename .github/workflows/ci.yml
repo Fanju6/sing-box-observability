@@ -119,6 +119,53 @@ jobs:
             -o /tmp/sing-box-observability ./cmd/sing-box-observability
           go version -m /tmp/sing-box-observability
 
+  android-artifact:
+    name: Android ARM64 artifact
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13
+          cache: pnpm
+          cache-dependency-path: src/web/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: src/server/go.mod
+          cache-dependency-path: src/server/go.sum
+
+      - name: Build Android ARM64 package
+        env:
+          VERSION: 0.0.0-ci.${{ github.run_number }}.${{ github.run_attempt }}+${{ github.sha }}
+        run: bash ./scripts/build-android.sh
+
+      - name: Upload Android ARM64 artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: sing-box-observability-${{ github.run_number }}-${{ github.run_attempt }}-android-arm64
+          path: release/android-arm64/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 9
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'
