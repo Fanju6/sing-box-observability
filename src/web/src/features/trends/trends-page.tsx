@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, ArrowDown, ArrowUp, Database } from 'lucide-react'
 import { useDimensionSeries, useMeta, useOverview, useRankings } from '@/api/hooks'
@@ -31,20 +31,15 @@ export function TrendsPage() {
     limit: 50,
     enabled: dimension !== 'global',
   })
+  const rankingValues = rankings.data?.data.map((item) => item.value) ?? []
+  const selectedValue = dimension === 'global'
+    ? ''
+    : rankingValues.includes(value) ? value : rankingValues[0] ?? ''
   const dimensionSeries = useDimensionSeries({
     dimension: dimension === 'global' ? 'outbound' : dimension,
-    value,
+    value: selectedValue,
     window,
   })
-
-  useEffect(() => {
-    if (dimension === 'global') {
-      setValue('')
-      return
-    }
-    const values = rankings.data?.data.map((item) => item.value) ?? []
-    if (values.length > 0 && !values.includes(value)) setValue(values[0])
-  }, [dimension, rankings.data, value])
 
   const data = overview.data
   const selectedSeries = dimension === 'global' ? data?.series ?? [] : dimensionSeries.data?.series ?? []
@@ -80,7 +75,7 @@ export function TrendsPage() {
           </TabsList>
         </Tabs>
         {dimension !== 'global' && rankings.data && rankings.data.data.length > 0 && (
-          <Select value={value} onValueChange={setValue}>
+          <Select value={selectedValue} onValueChange={setValue}>
             <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
             <SelectContent>{rankings.data.data.map((item) => <SelectItem key={item.value} value={item.value}>{item.value}</SelectItem>)}</SelectContent>
           </Select>
@@ -102,7 +97,7 @@ export function TrendsPage() {
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>{dimension === 'global' ? t('trends.traffic') : value || t('common.empty')}</CardTitle>
+              <CardTitle>{dimension === 'global' ? t('trends.traffic') : selectedValue || t('common.empty')}</CardTitle>
               {dimension !== 'global' && <span className="font-mono text-[11px] text-[var(--color-text-faint)]">{t(`trends.${dimension}`)}</span>}
             </CardHeader>
             <CardContent>

@@ -15,7 +15,6 @@ import { EmptyState, ErrorState } from '@/components/data-state/states'
 import { formatBytes, formatLocalDateTime, formatCount, formatDuration } from '@/lib/format'
 import { Search, ChevronDown, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { timeWindowKey } from '@/lib/time-window'
 
 const PAGE_SIZE = 50
 
@@ -62,9 +61,27 @@ export function ConnectionsPage() {
   const [selected, setSelected] = useState<Connection | null>(null)
   const [recentWindow, setRecentWindow] = useState<TimeWindowSelection>({ range: '1h' })
   const debouncedSearch = useDebounce(search, 300)
-  const recentWindowValue = timeWindowKey(recentWindow)
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, tab, network, outbound, recentWindowValue])
+  const updateTab = (next: 'active' | 'recent') => {
+    setTab(next)
+    setPage(1)
+  }
+  const updateSearch = (next: string) => {
+    setSearch(next)
+    setPage(1)
+  }
+  const updateNetwork = (next: string) => {
+    setNetwork(next)
+    setPage(1)
+  }
+  const updateOutbound = (next: string) => {
+    setOutbound(next)
+    setPage(1)
+  }
+  const updateRecentWindow = (next: TimeWindowSelection) => {
+    setRecentWindow(next)
+    setPage(1)
+  }
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -104,7 +121,7 @@ export function ConnectionsPage() {
 
       <Card className="max-lg:overflow-visible max-lg:border-0 max-lg:bg-transparent max-lg:shadow-none">
         <CardHeader className="pb-2">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as 'active' | 'recent')} className="w-full">
+          <Tabs value={tab} onValueChange={(v) => updateTab(v as 'active' | 'recent')} className="w-full">
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -115,7 +132,7 @@ export function ConnectionsPage() {
                   {tab === 'recent' && (
                     <TimeRangePicker
                       value={recentWindow}
-                      onChange={setRecentWindow}
+                      onChange={updateRecentWindow}
                       retentionSeconds={meta?.collector.retentionSeconds}
                       historyAvailableFrom={meta?.source.historyAvailableFrom}
                     />
@@ -127,12 +144,12 @@ export function ConnectionsPage() {
                     className="w-full pl-9 sm:w-64"
                     placeholder={t('connections.searchPlaceholder')}
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => updateSearch(e.target.value)}
                   />
                   {search && (
                     <button
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text)]"
-                      onClick={() => setSearch('')}
+                      onClick={() => updateSearch('')}
                       aria-label={t('connections.clearSearch')}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -141,8 +158,8 @@ export function ConnectionsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-                <Input className="sm:w-40" aria-label={t('connections.network')} placeholder={t('connections.network')} value={network} onChange={(event) => setNetwork(event.target.value)} />
-                <Input className="sm:w-48" aria-label={t('connections.outbound')} placeholder={t('connections.outbound')} value={outbound} onChange={(event) => setOutbound(event.target.value)} />
+                <Input className="sm:w-40" aria-label={t('connections.network')} placeholder={t('connections.network')} value={network} onChange={(event) => updateNetwork(event.target.value)} />
+                <Input className="sm:w-48" aria-label={t('connections.outbound')} placeholder={t('connections.outbound')} value={outbound} onChange={(event) => updateOutbound(event.target.value)} />
               </div>
             </div>
           </Tabs>
