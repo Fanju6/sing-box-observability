@@ -18,9 +18,9 @@
 
 1. 确认 `git status` 只包含预期源码变更。
 2. 执行 [开发与测试](./development.md) 中的全部检查。
-3. 从清洁 checkout 运行 Android 构建脚本。
+3. 从清洁 checkout 运行 Magisk / KernelSU 模块构建脚本。
 4. 确认生产前端和二进制不包含 `mockServiceWorker`、本地路径、令牌或测试凭据。
-5. 校验 `SHA256SUMS.txt` 并检查 `BUILD-MANIFEST.txt`。
+5. 校验模块 ZIP 的 `.sha256`、`docs/MODULE-SHA256SUMS.txt` 和 `docs/BUILD-MANIFEST.txt`。
 6. 检查 `FRONTEND-LICENSES.txt`、`GO-LICENSES.txt` 和 `THIRD_PARTY_LICENSES.txt` 是否随包发布。
 
 ## GitHub 设置
@@ -33,4 +33,4 @@
 
 ## 首个版本
 
-从清洁提交创建签名的 `v0.x.y` 标签。Release 工作流会生成 Android ARM64 压缩包和校验文件，并创建 GitHub Release。发布前确认构建清单中的版本、提交和提交时间与标签一致。
+从清洁提交创建签名的 `v0.x.y` 标签。Release 工作流会生成可直接安装的 Android ARM64 Magisk / KernelSU 模块 ZIP 和校验文件，并创建 GitHub Release。发布前确认构建清单中的版本、提交和提交时间与标签一致。

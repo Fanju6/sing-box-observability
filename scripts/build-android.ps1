@@ -5,6 +5,8 @@ param(
     [ValidatePattern('^[0-9A-Za-z][0-9A-Za-z._+-]*$')]
     [string]$Version = '',
 
+    [long]$VersionCode = 0,
+
     [string]$OutputDirectory = ''
 )
 
@@ -22,10 +24,21 @@ function Get-RelativeFileNames {
     return $names
 }
 
+function Copy-TextFileWithLf {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Destination
+    )
+
+    $content = [IO.File]::ReadAllText($Source).Replace("`r`n", "`n").Replace("`r", "`n")
+    [IO.File]::WriteAllText($Destination, $content, $utf8NoBom)
+}
+
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $webRoot = Join-Path $repoRoot 'src\web'
 $serverRoot = Join-Path $repoRoot 'src\server'
 $embedDirectory = Join-Path $serverRoot 'internal\webui\dist'
+$packagingRoot = Join-Path $repoRoot 'packaging\magisk'
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'release'))
 if (Test-Path -LiteralPath $releaseRoot) {
     $releaseItem = Get-Item -LiteralPath $releaseRoot -Force
@@ -34,10 +47,9 @@ if (Test-Path -LiteralPath $releaseRoot) {
     }
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $releaseRoot 'android-arm64'
+    $OutputDirectory = Join-Path $releaseRoot 'module-arm64'
 }
 $outputRoot = [IO.Path]::GetFullPath($OutputDirectory)
-
 $outputParent = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($outputRoot))
 if (-not $outputParent.Equals($releaseRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw "OutputDirectory must be a direct child of $releaseRoot"
@@ -69,6 +81,30 @@ if ($Version -notmatch '^[0-9A-Za-z][0-9A-Za-z._+-]*$') {
     throw 'Version may contain only letters, digits, dot, underscore, plus, and hyphen.'
 }
 
+if ($VersionCode -eq 0) {
+    if ($Version -match '^(\d+)(?:\.(\d+))?(?:\.(\d+))?') {
+        $major = [long]$Matches[1]
+        $minor = if ($Matches[2]) { [long]$Matches[2] } else { 0 }
+        $patch = if ($Matches[3]) { [long]$Matches[3] } else { 0 }
+        $VersionCode = $major * 1000000 + $minor * 1000 + $patch
+    }
+    if ($VersionCode -eq 0) { $VersionCode = 1 }
+}
+if ($VersionCode -lt 1 -or $VersionCode -gt 2147483647) {
+    throw 'VersionCode must be between 1 and 2147483647.'
+}
+
+$zipPath = Join-Path $releaseRoot "sing-box-observability-$Version-module-arm64.zip"
+$zipChecksumPath = "$zipPath.sha256"
+foreach ($path in @($zipPath, $zipChecksumPath)) {
+    if (Test-Path -LiteralPath $path) {
+        $item = Get-Item -LiteralPath $path -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Refusing to replace reparse-point release file: $path"
+        }
+    }
+}
+
 $commit = (& git -C $repoRoot rev-parse --verify HEAD 2>$null)
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commit)) {
     $commit = 'unknown'
@@ -85,7 +121,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($buildTime)) {
     $buildTime = $buildTime.Trim()
 }
 
-Write-Host "Building frontend with locked dependencies..."
+Write-Host 'Building frontend with locked dependencies...'
 & pnpm --dir $webRoot install --frozen-lockfile
 if ($LASTEXITCODE -ne 0) { throw 'pnpm install failed' }
 & pnpm --dir $webRoot build
@@ -103,19 +139,13 @@ if ($frontendDigestLines.Count -eq 0) {
 $frontendDigestInput = ($frontendDigestLines -join "`n") + "`n"
 $frontendHasher = [Security.Cryptography.SHA256]::Create()
 try {
-    $frontendDigestBytes = $frontendHasher.ComputeHash(
-        [Text.Encoding]::UTF8.GetBytes($frontendDigestInput)
-    )
+    $frontendDigestBytes = $frontendHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($frontendDigestInput))
 } finally {
     $frontendHasher.Dispose()
 }
 $frontendDigest = -join ($frontendDigestBytes | ForEach-Object { $_.ToString('x2') })
 $frontendMarkerName = "frontend-$frontendDigest.txt"
-[IO.File]::WriteAllText(
-    (Join-Path $webRoot "dist\$frontendMarkerName"),
-    $frontendDigest + "`n",
-    $utf8NoBom
-)
+[IO.File]::WriteAllText((Join-Path $webDist $frontendMarkerName), $frontendDigest + "`n", $utf8NoBom)
 
 $expectedEmbed = [IO.Path]::GetFullPath((Join-Path $repoRoot 'src\server\internal\webui\dist'))
 if ([IO.Path]::GetFullPath($embedDirectory) -ne $expectedEmbed) {
@@ -129,16 +159,20 @@ if (Test-Path -LiteralPath $embedDirectory) {
     Remove-Item -LiteralPath $embedDirectory -Recurse -Force
 }
 New-Item -ItemType Directory -Path $embedDirectory -Force | Out-Null
-Copy-Item -Path (Join-Path $webRoot 'dist\*') -Destination $embedDirectory -Recurse -Force
+Copy-Item -Path (Join-Path $webDist '*') -Destination $embedDirectory -Recurse -Force
 
-Write-Host "Testing the embedded build..."
+Write-Host 'Testing the embedded build...'
 & go -C $serverRoot test -tags webui ./...
 if ($LASTEXITCODE -ne 0) { throw 'embedded Go tests failed' }
 
 if (Test-Path -LiteralPath $outputRoot) {
     Remove-Item -LiteralPath $outputRoot -Recurse -Force
 }
-New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+Remove-Item -LiteralPath $zipPath, $zipChecksumPath -Force -ErrorAction SilentlyContinue
+$binDirectory = Join-Path $outputRoot 'bin'
+$configDirectory = Join-Path $outputRoot 'config'
+$docsDirectory = Join-Path $outputRoot 'docs'
+New-Item -ItemType Directory -Path $binDirectory, $configDirectory, $docsDirectory -Force | Out-Null
 
 $module = 'github.com/Fanju6/sing-box-observability/src/server/internal/buildinfo'
 $linkerFlags = "-s -w -X $module.Version=$Version -X $module.Commit=$commit -X $module.BuildTime=$buildTime"
@@ -149,7 +183,7 @@ try {
     $env:GOOS = 'android'
     $env:GOARCH = 'arm64'
     $env:CGO_ENABLED = '0'
-    & go -C $serverRoot build -buildvcs=false -tags webui -trimpath -ldflags $linkerFlags -o (Join-Path $outputRoot 'sing-box-observability') ./cmd/sing-box-observability
+    & go -C $serverRoot build -buildvcs=false -tags webui -trimpath -ldflags $linkerFlags -o (Join-Path $binDirectory 'sing-box-observability') ./cmd/sing-box-observability
     if ($LASTEXITCODE -ne 0) { throw 'Android cross-compilation failed' }
 } finally {
     if ($null -eq $savedGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $savedGoos }
@@ -157,7 +191,7 @@ try {
     if ($null -eq $savedCgo) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $savedCgo }
 }
 
-$binaryPath = Join-Path $outputRoot 'sing-box-observability'
+$binaryPath = Join-Path $binDirectory 'sing-box-observability'
 $binaryText = [Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes($binaryPath))
 if (-not $binaryText.Contains($frontendMarkerName, [StringComparison]::Ordinal)) {
     throw "Android binary does not contain the current frontend build marker: $frontendMarkerName"
@@ -166,44 +200,46 @@ if ($binaryText.Contains('mockServiceWorker.js', [StringComparison]::Ordinal)) {
     throw 'Android binary unexpectedly contains mockServiceWorker.js'
 }
 
-Copy-Item (Join-Path $repoRoot 'packaging\android\config.example.yaml') (Join-Path $outputRoot 'config.yaml')
-Copy-Item (Join-Path $repoRoot 'packaging\android\sing-box-observabilityctl') $outputRoot
-Copy-Item (Join-Path $repoRoot 'packaging\android\service.d.sh') $outputRoot
-Copy-Item (Join-Path $repoRoot 'packaging\android\README.md') $outputRoot
-Copy-Item (Join-Path $repoRoot 'LICENSE') $outputRoot
-Copy-Item (Join-Path $repoRoot 'NOTICE') $outputRoot
-Copy-Item (Join-Path $repoRoot 'THIRD_PARTY_LICENSES.txt') $outputRoot
+$moduleProp = [IO.File]::ReadAllText((Join-Path $packagingRoot 'module.prop.in'))
+$moduleProp = $moduleProp.Replace('@VERSION@', $Version).Replace('@VERSION_CODE@', [string]$VersionCode)
+[IO.File]::WriteAllText(
+    (Join-Path $outputRoot 'module.prop'),
+    $moduleProp.Replace("`r`n", "`n").Replace("`r", "`n"),
+    $utf8NoBom
+)
+foreach ($scriptName in @('customize.sh', 'service.sh', 'action.sh', 'uninstall.sh')) {
+    Copy-TextFileWithLf -Source (Join-Path $packagingRoot $scriptName) -Destination (Join-Path $outputRoot $scriptName)
+}
+Copy-TextFileWithLf -Source (Join-Path $packagingRoot 'sing-box-observabilityctl') -Destination (Join-Path $binDirectory 'sing-box-observabilityctl')
+Copy-TextFileWithLf -Source (Join-Path $packagingRoot 'config.default.yaml') -Destination (Join-Path $configDirectory 'default.yaml')
+Copy-Item (Join-Path $packagingRoot 'webroot') (Join-Path $outputRoot 'webroot') -Recurse
+Copy-Item (Join-Path $packagingRoot 'README.md') $docsDirectory
+Copy-Item (Join-Path $repoRoot 'LICENSE') $docsDirectory
+Copy-Item (Join-Path $repoRoot 'NOTICE') $docsDirectory
+Copy-Item (Join-Path $repoRoot 'THIRD_PARTY_LICENSES.txt') $docsDirectory
 
 $manifest = @(
     "version=$Version"
+    "versionCode=$VersionCode"
     "commit=$commit"
     "buildTime=$buildTime"
-    "target=android/arm64"
+    'target=magisk/android/arm64'
     "frontendDigest=$frontendDigest"
 )
-[IO.File]::WriteAllText(
-    (Join-Path $outputRoot 'BUILD-MANIFEST.txt'),
-    ($manifest -join "`n") + "`n",
-    $utf8NoBom
-)
+[IO.File]::WriteAllText((Join-Path $docsDirectory 'BUILD-MANIFEST.txt'), ($manifest -join "`n") + "`n", $utf8NoBom)
 
-$frontendLines = Get-RelativeFileNames -Root $webDist |
-    ForEach-Object {
-        $relative = $_
-        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $webDist $relative)).Hash.ToLowerInvariant()
-        "$hash  $relative"
-    }
-[IO.File]::WriteAllText(
-    (Join-Path $outputRoot 'FRONTEND-SHA256.txt'),
-    ($frontendLines -join "`n") + "`n",
-    $utf8NoBom
-)
+$frontendLines = Get-RelativeFileNames -Root $webDist | ForEach-Object {
+    $relative = $_
+    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $webDist $relative)).Hash.ToLowerInvariant()
+    "$hash  $relative"
+}
+[IO.File]::WriteAllText((Join-Path $docsDirectory 'FRONTEND-SHA256.txt'), ($frontendLines -join "`n") + "`n", $utf8NoBom)
 
-Write-Host "Collecting third-party license texts..."
+Write-Host 'Collecting third-party license texts...'
 & node (Join-Path $repoRoot 'scripts\collect-frontend-licenses.mjs') `
     --web-root $webRoot `
-    --inventory (Join-Path $outputRoot 'FRONTEND-LICENSES.json') `
-    --notices (Join-Path $outputRoot 'FRONTEND-LICENSES.txt')
+    --inventory (Join-Path $docsDirectory 'FRONTEND-LICENSES.json') `
+    --notices (Join-Path $docsDirectory 'FRONTEND-LICENSES.txt')
 if ($LASTEXITCODE -ne 0) { throw 'frontend license collection failed' }
 
 & go run (Join-Path $repoRoot 'scripts\collect-go-licenses.go') `
@@ -212,23 +248,36 @@ if ($LASTEXITCODE -ne 0) { throw 'frontend license collection failed' }
     -tags webui `
     -goos android `
     -goarch arm64 `
-    -inventory (Join-Path $outputRoot 'GO-MODULES.txt') `
-    -notices (Join-Path $outputRoot 'GO-LICENSES.txt')
+    -inventory (Join-Path $docsDirectory 'GO-MODULES.txt') `
+    -notices (Join-Path $docsDirectory 'GO-LICENSES.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Go license collection failed' }
 
 $checksumLines = Get-RelativeFileNames -Root $outputRoot |
-    Where-Object { $_ -ne 'SHA256SUMS.txt' } |
+    Where-Object { $_ -ne 'docs/MODULE-SHA256SUMS.txt' } |
     ForEach-Object {
         $relative = $_
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $outputRoot $relative)).Hash.ToLowerInvariant()
         "$hash  $relative"
     }
-[IO.File]::WriteAllText(
-    (Join-Path $outputRoot 'SHA256SUMS.txt'),
-    ($checksumLines -join "`n") + "`n",
-    $utf8NoBom
-)
+[IO.File]::WriteAllText((Join-Path $docsDirectory 'MODULE-SHA256SUMS.txt'), ($checksumLines -join "`n") + "`n", $utf8NoBom)
 
-Write-Host "Android package folder: $outputRoot"
-Write-Host "Version: $Version"
+[IO.Compression.ZipFile]::CreateFromDirectory($outputRoot, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $false)
+$archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+    $entryNames = @($archive.Entries | ForEach-Object FullName)
+    foreach ($requiredEntry in @('module.prop', 'customize.sh', 'service.sh', 'bin/sing-box-observability', 'config/default.yaml', 'webroot/index.html')) {
+        if ($entryNames -notcontains $requiredEntry) {
+            throw "Magisk archive is missing required entry: $requiredEntry"
+        }
+    }
+} finally {
+    $archive.Dispose()
+}
+$zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+[IO.File]::WriteAllText($zipChecksumPath, "$zipHash  $([IO.Path]::GetFileName($zipPath))`n", $utf8NoBom)
+
+Write-Host "Magisk / KernelSU module ZIP: $zipPath"
+Write-Host "ZIP checksum: $zipChecksumPath"
+Write-Host "Module staging folder: $outputRoot"
+Write-Host "Version: $Version ($VersionCode)"
 Write-Host "Commit: $commit"

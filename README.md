@@ -20,7 +20,7 @@ src/
   server/                 Go API、采集器、SSE、SQLite 与嵌入式前端
   web/                    React、TypeScript、Vite 与 Tailwind CSS 前端
 contracts/openapi.yaml    前后端接口契约
-packaging/android/        Android 配置、控制脚本与安装说明
+packaging/magisk/         Magisk/KernelSU 模块、WebUI、默认配置与安装说明
 scripts/                  构建和第三方许可证收集脚本
 docs/                     架构、开发和发布文档
 ```
@@ -63,7 +63,7 @@ pnpm dev
 
 连接真实 sing-box 时，在 `src/server/config.local.yaml` 中设置 `singbox.base_url` 和 `singbox.token`，也可使用对应的 `SBOBS_*` 环境变量。不要提交真实令牌。
 
-## Android 构建
+## Magisk / KernelSU 模块构建
 
 Windows：
 
@@ -77,7 +77,7 @@ Linux 或 macOS：
 sh ./scripts/build-android.sh
 ```
 
-默认输出到 `release/android-arm64/`。构建脚本会重新构建前端、替换嵌入资源、交叉编译 Android/arm64，并生成依赖许可、构建清单和校验和。安装方式见 [Android 使用说明](./packaging/android/README.md)。
+构建脚本会直接生成可由 Magisk 或 KernelSU 管理器安装的 `release/sing-box-observability-<版本>-module-arm64.zip` 及 SHA-256 文件，同时保留 `release/module-arm64/` 作为结构检查目录。KernelSU 可通过模块的 `webroot/index.html` 在内置 WebView 中打开完整面板。脚本会重新构建前端、替换嵌入资源、交叉编译 Android/arm64，并生成依赖许可、构建清单和模块文件校验和。安装方式见 [模块使用说明](./packaging/magisk/README.md)。
 
 ## 配置与安全
 

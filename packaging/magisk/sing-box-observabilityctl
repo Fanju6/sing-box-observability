@@ -2,13 +2,19 @@
 
 umask 077
 
-BASE_DIR="${SBOBS_HOME:-/data/adb/sing-box-observability}"
-BIN="$BASE_DIR/sing-box-observability"
-CONFIG="$BASE_DIR/config.yaml"
-DATA_DIR="$BASE_DIR/data"
-PID_FILE="$BASE_DIR/sing-box-observability.pid"
-LOG_FILE="$BASE_DIR/sing-box-observability.log"
-LOCK_DIR="$BASE_DIR/.control.lock"
+SCRIPT_DIR=${0%/*}
+case "$SCRIPT_DIR" in
+  /*) ;;
+  *) SCRIPT_DIR="$(cd "$SCRIPT_DIR" && pwd)" ;;
+esac
+MODDIR=${SCRIPT_DIR%/bin}
+STATE_DIR="${SBOBS_STATE_DIR:-/data/adb/sing-box-observability}"
+BIN="$MODDIR/bin/sing-box-observability"
+CONFIG="$STATE_DIR/config.yaml"
+DATA_DIR="$STATE_DIR/data"
+PID_FILE="$STATE_DIR/sing-box-observability.pid"
+LOG_FILE="$STATE_DIR/sing-box-observability.log"
+LOCK_DIR="$STATE_DIR/.control.lock"
 LOCK_OWNER_FILE="$LOCK_DIR/owner"
 MAX_LOG_BYTES="${SBOBS_LOG_MAX_BYTES:-1048576}"
 READY_URL="${SBOBS_READY_URL:-http://127.0.0.1:9095/readyz}"
@@ -58,7 +64,7 @@ release_lock() {
 }
 
 acquire_lock() {
-  mkdir -p "$BASE_DIR" || return 1
+  mkdir -p "$STATE_DIR" || return 1
   self_boot="$(boot_id)"
   self_start="$(process_start_ticks "$$")"
   [ -n "$self_boot" ] && [ -n "$self_start" ] || {
@@ -84,7 +90,7 @@ acquire_lock() {
   if ! printf '%s %s %s\n' "$$" "$self_boot" "$self_start" >"$LOCK_OWNER_FILE"; then
     rm -f "$LOCK_OWNER_FILE"
     rmdir "$LOCK_DIR" 2>/dev/null
-    echo "cannot write control lock owner: $LOCK_OWNER_FILE" >&2
+    echo "cannot write control lock owner metadata" >&2
     return 1
   fi
   trap 'release_lock' EXIT
@@ -111,7 +117,7 @@ start_service() {
     rm -f "$PID_FILE"
   fi
   [ -x "$BIN" ] || {
-    echo "binary is missing or not executable: $BIN" >&2
+    echo "module binary is missing or not executable: $BIN" >&2
     return 1
   }
   [ -f "$CONFIG" ] || {
@@ -119,13 +125,13 @@ start_service() {
     return 1
   }
   mkdir -p "$DATA_DIR" || return 1
-  chmod 700 "$BASE_DIR" "$DATA_DIR" 2>/dev/null
+  chmod 700 "$STATE_DIR" "$DATA_DIR" 2>/dev/null
   chmod 600 "$CONFIG" 2>/dev/null
   for sensitive_file in "$DATA_DIR"/* "$LOG_FILE"; do
     [ -f "$sensitive_file" ] && chmod 600 "$sensitive_file" 2>/dev/null
   done
   rotate_log || return 1
-  cd "$BASE_DIR" || return 1
+  cd "$STATE_DIR" || return 1
   nohup "$BIN" -config "$CONFIG" </dev/null >>"$LOG_FILE" 2>&1 &
   pid=$!
   printf '%s\n' "$pid" >"$PID_FILE"

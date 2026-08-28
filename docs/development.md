@@ -63,13 +63,13 @@ go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
 Windows 本机若没有 CGO/GCC，可以由 Linux CI 执行 race 测试，其余检查仍应在本机完成。
 
-完整嵌入和 Android 交叉编译使用：
+完整嵌入、Android 交叉编译和 Magisk / KernelSU 模块 ZIP 使用：
 
 ```powershell
 ./scripts/build-android.ps1
 ```
 
-构建脚本会重新构建前端、替换 `src/server/internal/webui/dist`、运行 webui 标签测试、生成许可证清单并验证嵌入摘要。
+构建脚本会重新构建前端、替换 `src/server/internal/webui/dist`、运行 webui 标签测试、生成许可证清单、验证嵌入摘要，并校验模块 ZIP 和 KernelSU `webroot/index.html` 的必需入口。
 
 ## 提交要求
 

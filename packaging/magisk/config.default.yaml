@@ -15,7 +15,6 @@ singbox:
   # 挂载 /observability/v1 的 sing-box 监听地址。
   base_url: http://127.0.0.1:9090
   # 启用认证时必须与监听器密钥一致。
-  # 优先使用 SBOBS_SINGBOX_TOKEN，避免把密钥写入文件。
   token: ""
 
 collector:
@@ -25,6 +24,7 @@ collector:
   stale_after: 30s
 
 storage:
+  # 配置和数据库位于模块目录之外，升级不会覆盖。
   # expose_sensitive 启用后可能包含敏感连接历史。
   path: /data/adb/sing-box-observability/data/observability.db
   retention: 168h

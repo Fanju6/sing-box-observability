@@ -1,0 +1,6 @@
+id=sing-box-observability
+name=sing-box Observability
+version=@VERSION@
+versionCode=@VERSION_CODE@
+author=Fanju6
+description=面向 sing-box observability API 的只读监控面板（Android ARM64）

@@ -120,7 +120,7 @@ jobs:
           go version -m /tmp/sing-box-observability
 
   android-artifact:
-    name: Android ARM64 artifact
+    name: Magisk module artifact
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -152,19 +152,22 @@ jobs:
           go-version-file: src/server/go.mod
           cache-dependency-path: src/server/go.sum
 
-      - name: Build Android ARM64 package
+      - name: Build Magisk module
         env:
           VERSION: 0.0.0-ci.${{ github.run_number }}.${{ github.run_attempt }}+${{ github.sha }}
+          VERSION_CODE: ${{ github.run_number }}
         run: bash ./scripts/build-android.sh
 
-      - name: Upload Android ARM64 artifact
+      - name: Upload Magisk module artifact
         uses: actions/upload-artifact@v6
         with:
-          name: sing-box-observability-${{ github.run_number }}-${{ github.run_attempt }}-android-arm64
-          path: release/android-arm64/
+          name: sing-box-observability-${{ github.run_number }}-${{ github.run_attempt }}-module-arm64
+          path: |
+            release/*-module-arm64.zip
+            release/*-module-arm64.zip.sha256
           if-no-files-found: error
           retention-days: 14
-          compression-level: 9
+          compression-level: 0
 
   dependency-review:
     name: Dependency review
